@@ -1,10 +1,11 @@
 ---
-title: "Predicting SaaS Revenue Multiples"
-date: "29 April 2022"
-output:
-  pdf_document: default
-  word_document: default
+title: "GroupProject"
+author: "Group 16"
+date: "4/26/2022"
+output: pdf_document
 ---
+
+
 
 ## Introduction
         
@@ -16,94 +17,92 @@ We define a revenue multiple as the enterprise value of a company divided by the
 
 
 
+
+
+```{r}
+StockData = read.csv("C:\\Users\\tobio\\Documents\\Data Science 4322\\Stock_Data.csv")
+View(StockData)
+#View(StockData)
+```
+
+
 ## Linear Regression Model
 
 First we wanted to see the correlation of all the predictors just so we could get a good grasp and what variables would and wouldn’t work. Next, we wanted to see if all or only some variables correlated in predicting our response variable. So we used the regsubsets() function that will essentially perform the best subset selection by identifying the best model with a given number of predictors. So in this case we have 4 predictors in total so the function tests for the best 1 variable model all the one to the best 4 variable model.  We saw that our best model was the one with all 4 predictors. To confirm this we then created a table to show the rsq, adjusted r squared, Cp, and BIC for all of the best models from 1 predictor to 4. And we then decided that we would use the model with all four predictors for linear regression.
 
 Here's the equation for the our linear regression model:
 
-ev_ttm_multiple= $\beta 0$ + revenue_growth * $\beta 1$ + sales_efficiency * $\beta 2$ + gross_margin * $\beta 3$ + ebitda_margin * $\beta 4$ + c
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
+Y = $\beta_0$ + $\beta_1$$X_1$ +  $\beta_2$$X_2$ + $\beta_3$$X_3$ +  $\beta_4$$X_4$,
+where Y repersents the evm_ multiple, $X_1$, $X_2$, $X_3$, $X_4$ represent, revenu growth, sales_efficiency, ebitda_margin and gross_margin respectively.
 
 ```{r}
-library(readxl)
-StockData <- read_excel("stockdatasetfinal.xlsx")
-#StockData <- read_excel("stockdatasetfinal.xlsx", sheet = "data")
-#View(StockData)
+stock_lm4 = lm(ev_ttm_multiple~revenue_growth+sales_efficiency
+               +ebitda_margin+gross_margin,data=StockData)
+summary(stock_lm4)
 ```
-
+Because our p-value is less than $2.2X10^{-36}$. We can the reject the null hypothesis which states that $\beta_1 = \beta_2 = \beta_3= \beta_4= 0$. This further tells us that at least one of the predictors can be used to predict the model as shown above. An average $R^{2}$ value of 52.28% was gotten which telss us that about 52% of the data can be explained bu our model. Also, we it is evident from the model that each predictor has some sort of significance. Howevwe, beccause we know that increasing the number of predictors increases the $R^{2}$ value, we tried to get the best subset of predictors and all signs point to using the 4 variables as our predictors
 
 ```{r}
-library(readxl)
-StockData <-StockData[,-1] # remove the company names column
-#View(StockData)
-cor(StockData) # the correlation matrix
+library(leaps)
+stock_fit = regsubsets(ev_ttm_multiple~revenue_growth+sales_efficiency
+                       +ebitda_margin+gross_margin,data=StockData)
+
+stock_res = summary(stock_fit)
+stock_stat = cbind(stock_res$rsq,
+                   stock_res$adjr2,
+                   stock_res$cp,
+                   stock_res$bic)
+colnames(stock_stat) = c("rsq","Adjr2","Cp","BIC")
+stock_stat
 ```
-
-While looking at the correlation matrix, we can see a good correlation between ev_ttm_multiple and revenue_growth, and a small correlation between ev_ttm_multiple and sales_efficiency.
-
-Next we plot and check if there is any visible relation
+To select the best model, we need to look at these 3 statistics. The $C_p$ value must be value close to the number of predictors, The BIC, should be a low value and the Adjusted $R^{2}$ should be as high as possible. Based on the following statistcs, it is easy to conclude that the model woth 4 predictors is the best model to fit our data.
 ```{r}
-attach(StockData)
-pairs(StockData)
+par(mfrow = c(2,2))
+plot(stock_lm4)
 ```
+$\\$Hence, this is the equation for the model
+$\\$ev_ttm_multiple = -23.888 + 40.315Xrevenue_growth + 11.526Xsales_efficiency  - 16.316xebitda_margin + 32.586Xgross_margin.
 
-We can notice a linear relation between ev_ttm_multiple and revenue_growth and sales_efficiency
+From this equation, ebitda margin will negatively affect the ev_ttm_multiple while all others wil affect it ositively. To be more precise, for every %increase in revenue_growth, sales_efficiency and gross_margin , the ev_ttm_multiple increases by 40.315, 11.526 and 32.586 respectively WHILE the ev_multiple decreases by 16.316 with a percent increase in the ebitda_margin.
 
-
-
-Regsubstet told us that the best model was the one with all our models.
-this code performs a multiple linear regression. Notice the value of the mutiple R squared is about 54%.
-```{r}
-model.lm <- lm(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=StockData)
-par(mfrow=c(2,2))
-plot(model.lm)
-summary(model.lm)
-```
-
-The following code separate the data by training and test (cross validation)
-the training contain 80% of the data and the test contain 20%.
-Then we do a multiple linear regression.
+We proceded to train our model based on an 80%-20% division in order to calculate the MSE in order to get its prediction accuracy and perform cross validation. Here are our findings
 ```{r}
 set.seed(10)
-sample<- sample.int(n=nrow(StockData), size=round(.80*nrow(StockData), 0), replace=F)
-train<-StockData[sample, ]
-test<-StockData[-sample, ]
-model.lm <- lm(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=train)
+errors = rep(0,10)
+
+#TO GET MSE'S
+for (i in 1:10){
+  sample = sample.int(n = nrow(StockData), size=round(.80*nrow(StockData),0),replace=F)
+  training_data = StockData[sample,]
+  testing_data = StockData[-sample,]
+  my_fit = lm(ev_ttm_multiple~revenue_growth+sales_efficiency
+              +ebitda_margin+gross_margin,data=training_data)
+  errors[i] = mean((StockData$ev_ttm_multiple - predict(my_fit,StockData))[-sample]^2)
+}
+errors
+mean(errors)
 ```
+Upon doing 10 iterations, we arrived at a wide vaiety of MSE values. MSE are important because it is a means of showing how far off in prediction are we. Statistically, it tells us the square of the difference between the predicted and the actual observation. Our MSE values range from a low of 75.8 to a high of 285.90 which shows how fairly accurate the model is in predicting the ev_ttm_multiple.
 
-This code does a prediction with the test and calculate the MSE.
-```{r}
-model.pred<-predict(model.lm, newdata=test, se.fit = TRUE)
-#mse.lm=mean((test$ev_ttm_multiple - model.pred$fit)^2)
-mse.lm = mean((StockData$ev_ttm_multiple - predict(model.lm,StockData))[-sample]^2)
-mse.lm
-```
+## DECISION TREES
 
-This code does Leave one out cross validation and calculate the MSE.
-```{r}
- library(boot)
- fit.glm = glm( ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=StockData)
- cv.error.1=  cv.glm(StockData, fit.glm)$delta[1]
- cv.error.1
-```
-
-## Random Forest Model
-
-The reason we use this model is some of its advantages such as more accurate data, a more efficient way of handling data, and it also solves the issue of overfitting in a decision tree. We apply a tree-based model in our analysis plot(tree.model) which allows us to see the visualization of the data. Decision Trees are arranged in a hierarchical tree-like structure and are simple to understand and interpret. They are not susceptible to outliers and are able to capture nonlinear relationships.
+Decision trees are easier to interpret than regression models. That is the mean reason why we are using a decision tree. However we have to remember that decision trees perform worst in prediction that most regression model.
+This code makes a tree
 ```{r}
 set.seed(20)
 library(tree)
-tree.model <- tree(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=train)
+tree.model <- tree(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=training_data)
 summary(tree.model)
 plot(tree.model)
 text(tree.model)
 ```
 
-We also did our tree pruning model using the following code. Growing the tree beyond a certain level of complexity leads to overfitting. In our data, revenue_growth following sales_efficiency and the gross_margin don’t have any impact on the target variable. Growing the tree beyond sales_efficiency is not going to add any value so we cut it there.
+
+
+
+Prune Tree
+
+Then we proceeded to prune the tree at the best node using this code.
 ```{r}
 cv.ev=cv.tree(tree.model)
 plot(cv.ev$size, cv.ev$dev, type="b")
@@ -111,44 +110,110 @@ pruned_tree = prune.tree(tree.model, best = 4)
 plot(pruned_tree)
 text(pruned_tree)
 ```
+We can see that revenue growth, sales_efficiency and ebitda_margin are the predictor that affect the most our data.
 
-The following code does a cross validation on the tree model. This is our best model with the lowest MSE of 116.5
+
+
+
+MSE
+Next we are interested in check how well this model predict our data in a goal to compare it to our linear regression model.
+
+The following code does a cross validation on the tree model
+
 ```{r}
-yhat.prune=predict(tree.model, newdata=test)
-mse.tree=mean((test$ev_ttm_multiple - yhat.prune)^2)
-mse.tree
-# yhat.prune=predict(pruned_tree, newdata=test)
-# mse.tree=mean((test$ev_ttm_multiple - yhat.prune)^2)
-# mse.tree
+library(tree)
+mse.tree = rep(0, 10)
+for (i in 1:10){
+set.seed(i)
+sample<- sample.int(n=nrow(StockData), size=round(.80*nrow(StockData), 0))
+train<-StockData[sample, ]
+test<-StockData[-sample, ]
+tree.model <- tree(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=train)
+yhat.tree=predict(tree.model, newdata=test)
+mse.tree[i]=mean((test$ev_ttm_multiple - yhat.tree)^2)
+
+}
+mean(mse.tree)
 ```
+The obtained MSE is 252.2586 which is much higher than the one we have for the linear regression model.
 
-The following code does a random forest:
-Notice the Mean squared residual and % of variability explained.
-In our model, we have 100 trees and we use random forest regression.
+
+
+
+
+
+
+
+
+## Random Forest Model
+
+Although three-based methods are simple and easier to interpret, they lack the accuracy provided by regression models. For that reason, we decided to use a random forest model to add more accuracy to our prediction. A random forest is a good choice because it reduces the variance introduced in decision trees and tree bagging. However, using random forest comes at a cost of longer training periods thus there is a higher computation time and we cannot see the threes so we loose the simplicity of single decision trees.
+
+
+The following code does a random forest using ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin
+
 ```{r}
- p=4
+p=4
 B=100
 library(randomForest)
-bag.model=randomForest(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=StockData, ntree=B, mtry=p/3)
-bag.model
+rf.model=randomForest(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=StockData, ntree=B, mtry=p/3, importance = TRUE)
+rf.model
 ```
 
-The following code does boosting and shows the MSE.
+
+
+From this preliminary model, we get an MSE of 228.22 and and explain about 38.23% of the variance in the data set.
+Seeing that this value is lower than the MSE for the decision tree, we go on making a training and a testing set.
+
+```{r}
+library(randomForest)
+mse.randforest = rep(0, 10)
+p=4
+B=100
+for (i in 1:10) {
+set.seed(i)
+sample<- sample.int(n=nrow(StockData), size=round(.80*nrow(StockData)))
+train<-StockData[sample, ]
+test<-StockData[-sample, ]
+bag.model=randomForest(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=train, ntree=B, mtry=p/3)
+yhat.randforest=predict(bag.model, newdata=test)
+mse.randforest[i] = mean((test$ev_ttm_multiple - yhat.randforest)^2)
+}
+
+mean(mse.randforest)
+```
+
+The MSE obtained is 217.2678 which is still lower than decision tree MSE, proving that random forest is better in prediction than decision trees.
+
+
+
+
+## Boosting
+
+Note: This is not part of our project but we were curious to see how a boosting model would perform compared to our other models so proceeded on making a model.
+The following does a boosting and show the mse
+
+
 ```{r}
 library(gbm)
-set.seed(1)
-boost.model = gbm(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=StockData, distribution="gaussian", verbose=F)
-train = sample(1:nrow(StockData), .5*nrow(StockData))
-boost.test = StockData[-train, "ev_ttm_multiple"]
-yhat.boost = predict(boost.model, newdata = StockData[-train,], n.trees = 100)
-apply((yhat.boost-boost.test)^2, 2, mean)
+mse.boost = rep(0, 10)
+for (i in 1:10) {
+set.seed(i)
+sample<- sample.int(n=nrow(StockData), size=round(.80*nrow(StockData), 0))
+train<-StockData[sample, ]
+test<-StockData[-sample, ]
+boost.model = gbm(ev_ttm_multiple~revenue_growth+sales_efficiency+gross_margin+ebitda_margin, data=train, distribution="gaussian", verbose=F)
+yhat.boost=predict(boost.model, newdata=test)
+mse.boost[i] = mean((test$ev_ttm_multiple - yhat.boost)^2)
+}
+
+mean(mse.boost)
 ```
 
-
 ## Conclusion
-The random forest with pruning was our best model as it had the lowest MSE. However, the linear regression was able to give us more insight into which predictors are more associated with a higher revenue multiple. Revenue Growth ws our best predictor and sales efficiency was the second best. It is unreasonable to expect any model to predict the value of a company with high precision, however that are clear patterns that our models bring to light. It is logical that revenue growth plays a large role in the value of a SaaS company, considering that revenue is a company's oxygen. One of our most surprising finding was to see that ebitda margin % was somewhat negatively correlated with a higher multiple. A lower ebitda margin indicates that a company is "losing money," but it may be doing so to prioritize revenue growth which we found to be the most predictive. There is an expression in SaaS - grow at all costs and that may be true.
+The multiple linear model was our best model as it had the lowest MSE. The linear regression was able to give us more insight into which predictors are more associated with a higher revenue multiple. Revenue_Growth was our best predictor and sales efficiency was the second best. Decision Tree was the best model in terms of inference. We were surprised that the Random Forest has performed worse than the Linear Regression.  It is unreasonable to expect any model to predict the value of a company with high precision, however that are clear patterns that our models bring to light. It is logical that revenue growth plays a large role in the value of a SaaS company, considering that revenue is a company's oxygen. One of our most surprising finding was to see that ebitda_margin % was somewhat negatively correlated with a higher multiple. A lower ebitda_margin indicates that a company is "losing money," but it may be doing so to prioritize revenue growth which we found to be the most predictive. There is an expression in SaaS - grow at all costs and that may be true. Though it was not part of our plan, we performed Boosting and we found out that it was the best model for the data.  
 
 To tie everything back to why we chose to explore this data, every one of our group members plans to work professionaly in software after graduating. Stock is often big part of compensation packages. If any of us are considering a job offer from a SaaS company we will definitely be looking through their financials to see what kind of revenue multiple they should have.
 
 ## Endnotes
-Analysis for the linear regression model was performed by Oluwatobiloba Oladunjoye, Michael Thomas, and John Jackson. Analysis for the random forest regression model was performed by Mahamadou Dagnoko, Rafay Alam, and Min Shwe Maung Htet. To view our data set and source code, visit our GitHub repository https://github.com/johnjackson59/saas_multiples.
+Analysis for the linear regression model was performed by Oluwatobiloba Oladunjoye, Michael Thomas. Analysis for the random forest and boosting regression model was performed by Mahamadou Dagnoko  and Min Shwe Maung Htet. Decision Trees was performed by Rafay Alam and John Jackson.To view our data set and source code, visit our GitHub repository https://github.com/johnjackson59/saas_multiples.
